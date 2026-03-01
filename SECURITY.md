@@ -1,62 +1,57 @@
-# Security Policy
+# Politique de Sécurité
 
-## Supported Versions
+## Versions supportées
 
-Only the most recent stable release of Ygégé is guaranteed to have security patches applied. **Running older stable versions may leave you vulnerable to security risks**; always run the latest version, or avoid exposing your instance to the public Internet to minimize risk. Further, please always understand that providing a person with administrative access to your Ygégé configuration is a risk, as administrators can perform many destructive or damaging actions, regardless of any potential security issues.
+Seule la version stable la plus récente de Ygégé est garantie d'être mise à jour avec des correctifs de sécurité. **Utiliser des versions obsolètes peut vous exposer à des risques de sécurité** ; veillez à toujours utiliser la dernière version, ou évitez d'exposer votre instance sur l'Internet public pour minimiser les risques. De plus, comprenez bien que donner un accès administrateur à votre configuration Ygégé est un risque, car les administrateurs peuvent effectuer de nombreuses actions destructrices, indépendamment de toute faille potentielle.
 
-As such, this security policy only applies to the most recent stable version of Ygégé. Flaws present in old stable versions which are not present in the current stable version **will not** be fixed.
+Par conséquent, cette politique de sécurité s'applique uniquement à la version stable la plus récente de Ygégé. Les vulnérabilités présentes dans les anciennes versions qui ne sont plus présentes dans la version actuelle **ne seront pas** corrigées.
 
-## Vulnerability Triage
+## Triage des vulnérabilités
 
-We ask you to please review the following details before reporting an issue.
+Nous vous demandons de bien vouloir examiner les détails suivants avant de signaler un problème :
 
-* We are aware that many configuration and administrative operations may have security implications. Due to the internal details of how Ygégé works, many of these are unavoidable, and we expect users to understand that providing administrative access to configuration files is very sensitive as mentioned above. We consider any vulnerabilities that **exclusively require administrative privileges or file system access** to be a low priority, and those should be disclosed in normal GitHub Issues that can be fixed like any other bug.
+* Nous sommes conscients que de nombreuses opérations de configuration et d'administration peuvent avoir des implications en matière de sécurité. En raison du fonctionnement interne de Ygégé, beaucoup de ces implications sont inévitables. Toute vulnérabilité nécessitant **exclusivement des privilèges administrateur ou un accès direct au système de fichiers** sera considérée comme de faible priorité et pourra être signalée publiquement dans les Issues GitHub classiques.
 
-* We have a public list of known vulnerabilities in our [Security Advisories](https://github.com/UwUDev/ygege/security/advisories). If your vulnerability is **already disclosed there**, please do not duplicate effort by re-reporting it to our security team.
+* Nous avons une liste publique des vulnérabilités connues dans la section [Avis de Sécurité (Security Advisories)](https://github.com/UwUDev/ygege/security/advisories). Si votre trouvaille y figure **déjà**, merci de ne pas dupliquer le travail de notre équipe en le signalant de nouveau.
 
-* Vulnerabilities that can not be **exploited remotely** are considered low- to medium-priority bugs instead. For example, anything that requires shell access to the Ygégé server, manual manipulation of configuration files, etc.
+* Les vulnérabilités qui ne peuvent pas être **exploitées à distance** sont également considérées comme des bugs de priorité faible à moyenne (ex : tout ce qui nécessite un accès shell au serveur Ygégé, la manipulation manuelle de la base de données ou des logs, etc.).
 
-* Vulnerability reports about our project infrastructure (our website, servers, CI/CD, etc.) are welcome, but please tag those separately with `[Ygégé Infrastructure]` in the advisory title. Please also be aware that our infrastructure team does follow the news and has a standard patch policy, so duplicating publicly-known reports here is not usually necessary.
+* Les rapports de vulnérabilité concernant l'infrastructure du projet (serveurs en ligne, CI/CD, etc.) sont les bienvenus, mais veuillez les étiqueter avec `[Infrastructure Ygégé]`.
 
-## Reporting a Vulnerability
+## Signaler une vulnérabilité
 
-Once self-triaged and found to be a new and relevant vulnerability, please reach out for responsible disclosure through [GitHub Security Advisories](https://github.com/UwUDev/ygege/security/advisories/new).
+Une fois triée personnellement, et si la faille s'avère nouvelle et pertinente, veuillez nous contacter pour une divulgation responsable via la plateforme des [Avis de Sécurité GitHub (GitHub Security Advisories)](https://github.com/UwUDev/ygege/security/advisories/new).
 
-When providing a report, please ensure that you:
+Lors de votre signalement, assurez-vous de :
 
-1. Begin your advisory title with `[Ygégé Security]`. This helps ensure proper visibility and prioritization.
+1. Commencer le titre de votre rapport par `[Sécurité Ygégé]`. Cela nous aide pour le tri et la visibilité.
+2. Commencer par une section "Vue d'ensemble", **rédigée pour une publication future**, décrivant ce qui est affecté et les conséquences possibles. Idéalement, nous utiliserons ce texte tel quel pour décrire l'avis final.
+3. Poursuivre avec une section "Détails" expliquant vos recherches dans le code ou l'API, les étapes exactes de reproduction et/ou un script PoC (Proof of Concept), et si possible, un début de solution ou correctif suggéré.
+4. Fournir votre nom d'utilisateur GitHub pour que nous puissions vous inviter dans la discussion privée du GHSA et vous créditer lors de la publication.
 
-2. Start with an "overview" section, **written for public view**, that describes at a high level what is affected, and the possible consequences. Ideally, we will use this verbatim as the description of the GHSA.
+Une fois le rapport reçu, il sera examiné. Si pertinent, nous créerons un ticket privé GitHub Security Advisory (GHSA) dans lequel vous serez invité pour échanger de manière sécurisée et tester les correctifs.
 
-3. Continue on with a "details" section outlining any code or API investigation you have done and, if possible, any suggested fixes. Please provide as much context and detail as you can, including, ideally, a process for reliably triggering the vulnerability so we may test fixes with it.
+## Processus Post-Divulgation
 
-4. Please provide your GitHub username so we may invite you into the GHSA and provide proper credit.
+En tant que projet soutenu par des bénévoles de la communauté open-source, **nous reconnaissons que nous pouvons parfois mettre du temps** avant d'apporter une solution complète ; nous apprécions par avance votre patience et l'absence d'ultimatums stricts, particulièrement pour les vulnérabilités complexes.
 
-Once a report is received, it will be reviewed and, if applicable, we will create a GHSA and invite the reporter as well as the relevant team(s) to discuss the issue and work towards a fix.
+En règle générale, une version corrective rapide ("point release") sera déployée pour toute vulnérabilité majeure dès que le patch sera prêt. Si une version majeure est sur le point d'arriver dans les jours qui suivent, nous pourrions différer le correctif à cette version pour éviter les fusions de code compliquées.
 
-## Post-Disclosure Process
+Une fois la nouvelle version sécurisée publiée, **nous attendrons au moins 7 jours (1 semaine) avant de rendre le GHSA**. Nous pensons que ce délai offre un bon compromis entre une divulgation publique rapide et la certitude que la majorité de nos utilisateurs aura eu le temps de mettre à jour leurs instances privées. Nous vous demandons que toute divulgation par un tiers de votre côté (articles de blogs, tweets, etc.) ait lieu **après** la fin de ce délai de grâce.
 
-As a pure volunteer project, **we recognize that we may sometimes be slow to handle vulnerabilities**; we greatly **appreciate patience and the absence of arbitrary timelines for disclosures**, especially for complex vulnerabilities. This includes initial responses. You are welcome to follow up on your GitHub advisory if things go too long without a reply, though please remain polite and patient.
+Si applicable, les numéros de CVE seront demandés par nos soins via l'interface de sécurité GitHub et publiés avec la divulgation complète.
 
-Generally speaking, unless we are very close to a new major release, we will create a point release for any fixes for major vulnerabilities as soon as possible. When close to a new major release, we may wish to defer the fix to the major release instead to avoid duplicated work.
+## Bonnes Pratiques de Sécurité
 
-Once a new version is released, **we will wait at least 7 days (1 week) to publish our GHSA**. We believe this time is a fair balance between quick disclosure and the time needed by the majority of users to update their instances. We ask that all 3rd party disclosures (blog posts, etc.) occur **after** our GHSA is published.
+Lors du déploiement de l'indexeur Ygégé :
 
-CVEs will be requested by us through the GitHub Security interface and published along with the disclosure.
+- Utilisez toujours la dernière version stable, ou l'image Docker contenant les dernières dépendances.
+- Maintenez vos images Docker à jour régulièrement (`docker pull uwucode/ygege:latest`).
+- Limitez l'exposition réseau de votre conteneur Ygégé en ne le liant qu'à vos applications locales (Prowlarr, Jackett) plutôt qu'en l'exposant vers l'extérieur (ex: bind IP sur `127.0.0.1` ou réseau interne Docker).
+- Envisagez de placer Ygégé derrière un reverse proxy (NGINX, Traefik) avec du chiffrement SSL/TLS si vous deviez y accéder à distance sur un serveur non sécurisé.
+- Ne placez jamais de secrets, jetons FlareSolverr, de mot de passe réseau dans des dépôts git publics.
+- Surveillez vos logs docker pour détecter une activité suspecte ou des erreurs d'authentification massives.
 
-## Security Best Practices
+## Remerciements
 
-When deploying Ygégé:
-
-- Always use the latest stable version
-- Keep your Docker images updated regularly
-- Use strong authentication credentials for Telegram API
-- Consider running behind a reverse proxy with proper SSL/TLS
-- Regularly review your configuration for exposed API keys and credentials
-- Monitor logs for suspicious activity
-- Restrict network access to trusted sources when possible
-- Never commit sensitive credentials to version control
-
-## Acknowledgments
-
-We are grateful to all security researchers who responsibly disclose vulnerabilities and help keep the Ygégé community safe.
+Nous sommes incroyablement reconnaissants envers tous les chercheurs en sécurité informatiques et les curieux qui prennent le temps d'auditer notre système et nous rapportent les vulnérabilités de manière responsable, aidant ainsi à garder la communauté Ygégé en constante sécurité.

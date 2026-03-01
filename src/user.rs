@@ -1,5 +1,5 @@
 use crate::DOMAIN;
-use crate::utils::check_session_expired;
+use crate::flaresolverr::fetch_ygg_page;
 use serde::Serialize;
 
 #[derive(Debug, Default, Serialize)]
@@ -32,17 +32,8 @@ pub async fn get_account(client: &wreq::Client) -> Result<UserAccount, Box<dyn s
     };
 
     let url = format!("https://{}/user/account", domain);
-    let response = client.get(&url).send().await?;
+    let body = fetch_ygg_page(client, &url).await?;
 
-    if check_session_expired(&response) {
-        return Err("Session expired".into());
-    }
-
-    if !response.status().is_success() {
-        return Err(format!("Failed to fetch account info: {}", response.status()).into());
-    }
-
-    let body = response.text().await?;
     let document = scraper::Html::parse_document(&body);
     let mut account = UserAccount::default();
 

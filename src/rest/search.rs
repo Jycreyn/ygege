@@ -93,10 +93,11 @@ async fn batch_best_search(
             Err(e) => {
                 if e.to_string().contains("Session expired") {
                     info!("Session expired during TMDB search, attempting renewal...");
-                    let new_client = crate::auth::login(
+                    let new_client = crate::auth::login_with_flaresolverr(
                         config.username.as_str(),
                         config.password.as_str(),
                         true,
+                        config.flaresolverr_url.as_deref(),
                     )
                     .await?;
 
@@ -192,10 +193,11 @@ async fn batch_category_search(
             Err(e) => {
                 if e.to_string().contains("Session expired") {
                     info!("Session expired during category search, attempting renewal...");
-                    let new_client = crate::auth::login(
+                    let new_client = crate::auth::login_with_flaresolverr(
                         config.username.as_str(),
                         config.password.as_str(),
                         true,
+                        config.flaresolverr_url.as_deref(),
                     )
                     .await?;
 
@@ -434,7 +436,7 @@ pub async fn ygg_search(
             if e.to_string().contains("Session expired") && !data.is_custom {
                 info!("Trying to renew session...");
                 let new_client =
-                    crate::auth::login(config.username.as_str(), config.password.as_str(), true)
+                    crate::auth::login_with_flaresolverr(config.username.as_str(), config.password.as_str(), true, config.flaresolverr_url.as_deref())
                         .await?;
 
                 // Copy cookies from new client to shared client

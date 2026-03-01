@@ -1,7 +1,7 @@
 pub(crate) use crate::categories::CATEGORIES_CACHE;
 use crate::parser::Torrent;
 use crate::rate_limiter::RateLimiter;
-use crate::utils::check_session_expired;
+use crate::flaresolverr::fetch_ygg_page;
 use crate::{DOMAIN, parser};
 use std::str::FromStr;
 use std::sync::OnceLock;
@@ -45,14 +45,9 @@ pub async fn search(
 
     let url = build_query_url(name.as_str(), offset, category, sub_category, sort, order)?;
     let start = std::time::Instant::now();
-    let response = client.get(&url).send().await?;
+    let body = fetch_ygg_page(client, &url).await?;
 
-    if check_session_expired(&response) {
-        return Err("Session expired".into());
-    }
-
-    debug!("Search response: {}", response.status());
-    let body = response.text().await?;
+    debug!("Search response received");
     let torrents = parser::extract_torrents(&body)?;
     let torrents = if let Some(ban_words) = ban_words {
         torrents

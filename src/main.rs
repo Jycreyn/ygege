@@ -3,6 +3,7 @@ mod categories;
 mod config;
 mod dbs;
 mod domain;
+mod flaresolverr;
 mod parser;
 mod rate_limiter;
 pub mod resolver;
@@ -11,7 +12,7 @@ mod search;
 mod user;
 mod utils;
 
-use crate::auth::{KEY, login};
+use crate::auth::KEY;
 use crate::categories::init_categories;
 use crate::config::load_config;
 use crate::domain::{OWN_IP, get_own_ip, get_ygg_domain};
@@ -121,7 +122,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     drop(domain_lock);
 
     std::fs::create_dir_all("sessions")?;
-    let client = login(config.username.as_str(), config.password.as_str(), true).await?;
+
+    if let Some(ref fs_url) = config.flaresolverr_url {
+        match crate::flaresolverr::FlareSolverrClient::init_global(fs_url) {
+            Ok(()) => info!("FlareSolverr initialized at: {}", fs_url),
+            Err(e) => warn!("Failed to initialize FlareSolverr: {}", e),
+        }
+    } else {
+        info!("FlareSolverr not configured (set FLARESOLVERR_URL to enable CF fallback)");
+    }
+
+    let client = auth::login_with_flaresolverr(
+        config.username.as_str(),
+        config.password.as_str(),
+        true,
+        config.flaresolverr_url.as_deref(),
+    )
+    .await?;
     info!("Logged in to YGG with username: {}", config.username);
 
     let account = user::get_account(&client).await?;

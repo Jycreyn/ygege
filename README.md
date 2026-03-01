@@ -2,132 +2,162 @@
   <img src="website/img/ygege-logo-text.png" alt="Logo Ygégé" width="400"/>
 </p>
 
-<div align="right">
-  <details>
-    <summary>🌐 Language</summary>
-    <div>
-      <div align="center">
-        <a href="README.md">Français</a>
-        | <a href="README-en.md">English</a>
-      </div>
-    </div>
-  </details>
-</div>
+Indexeur haute performance pour YGG Torrent écrit en Rust
 
-Indexeur haute performance pour YGG Torrent écrit en Rust 
+## [AVERTISSEMENT LÉGAL](DISCLAIMER-fr.md)
 
-## https://discord.gg/rcsgdzNrvJ
-
-## [DISCLAIMER LÉGAL](DISCLAIMER-fr.md)
-
-<!--
-> [!CAUTION]
-> Suite a la nouvelle mise en place de la limite de 5 torrents gratuits par jour sur YGG Torrent, Ygégé n'est plus en mesure de fonctionner correctement. Je travaille actuellement sur une solution pour contourner cette limitation. Votre aide est possible meme si vous ne savez pas coder en Rust ni coder du tout. N'hesitez pas a aller voir le discord pour plus d'infos: https://discord.gg/rcsgdzNrvJ
+> [!NOTE]
+> **🤖 Fork "Vibe Code" — Intégration FlareSolverr**
 >
-> Edit: Ils ont patchés les 2 bypass et forcent le captcha turnstile... Merci de ne plus créer d'isssues a ce sujet (erreur 403)
--->
+> Ce fork a été modifié par **vibe coding** (assisté par IA) pour intégrer [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) comme **mécanisme de fallback** contre les challenges Cloudflare.
+>
+> Quand `wreq` seul n'arrive plus à passer le challenge CF (erreur 403, pas de cookie `ygg_`), ygege délègue automatiquement la résolution à un conteneur FlareSolverr, récupère les cookies de bypass, et les réinjecte dans le client `wreq` pour poursuivre le login normalement.
+>
+> **Fichiers modifiés :** `src/flaresolverr.rs` *(nouveau)*, `src/config.rs`, `src/auth.rs`, `src/main.rs`, `docker/compose.yml`
 
-**Caractéristiques principales** :
-- Résolution automatique du domaine actuel de YGG Torrent
-- Bypass Cloudflare automatisé (sans résolution manuelle)
-- Recherche quasi instantanée
-- Reconnexion transparente aux sessions expirées
-- Caching des sessions
-- Contournement des DNS menteurs
-- Consommation mémoire faible (14.7Mo en mode release sur Linux)
-- Recherche de torrents très modulaire (par nom, seed, leech, commentaires, date de publication, etc.)
-- Recuperation des informations complémentaires sur les torrents (description, taille, nombre de seeders, leechers, etc.)
-- Pas de dépendances externes
-- Pas de drivers de navigateur
+---
 
-## Prérequis pour la compilation
-- Rust 1.85.0+
-- OpenSSL 3+
-- Toutes les dépendances requises pour la compilation de [wreq](https://crates.io/crates/wreq)
+## Caractéristiques principales
 
-# Installation
+- ⚡ Recherche quasi instantanée
+- 🔒 Bypass Cloudflare automatisé via émulation TLS/HTTP2 ([wreq](https://crates.io/crates/wreq))
+- 🛡️ **Fallback FlareSolverr** optionnel si le bypass `wreq` échoue *(nouveau)*
+- 🔄 Résolution automatique du domaine actuel de YGG Torrent
+- 🔁 Reconnexion transparente aux sessions expirées + cache de sessions
+- 🌐 Contournement des DNS menteurs (fallback Cloudflare DNS)
+- 💾 Consommation mémoire faible (~15 Mo en release sur Linux)
+- 🔍 Recherche modulaire (nom, seed, leech, commentaires, date, etc.)
+- 📦 Aucune dépendance externe, aucun driver de navigateur
 
-Une image Docker prête à l'emploi est disponible pour Ygégé.
-Pour commencer le déploiement et la configuration de Docker, consultez le [Guide dédié à Docker](https://ygege.lila.ws/installation/docker-guide).
+---
+
+## Installation rapide (Docker)
 
 > [!IMPORTANT]
-> Si vous rencontrez une erreur `Permission denied` après mise à jour, consultez la section [Gestion des permissions](https://ygege.lila.ws/installation/docker-guide#gestion-des-permissions) du guide Docker.
+> Pour la compilation de l'image Docker et l'utilisation complète, consultez le **[Guide Docker complet](docs/build-docker-linux.md)**.
 
-## Docker
+### 1. Cloner le projet et construire l'image
 
-Pour créer une image Docker personnalisée avec vos propres optimisations, consultez le [Guide de création Docker](https://ygege.lila.ws/installation/docker-guide).
+```bash
+git clone <url-du-repo>
+cd ygege
+docker build -t ygege-local:latest -f docker/Dockerfile .
+```
 
-## Installation manuelle
+### 2. Configurer et lancer
 
-Pour compiler l'application à partir des sources, suivez le [Guide d'installation manuel](https://ygege.lila.ws/installation/source-guide).
+Éditez `docker/compose.yml` pour renseigner vos identifiants YGG et optionnellement activer FlareSolverr :
 
-Pour les fans de Docker, n'hésitez pas à contribuer au projet en m'aidant à créer une image Docker.
+```yaml
+services:
+  ygege:
+    image: ygege-local:latest    # ou uwucode/ygege:latest pour l'image officielle
+    environment:
+      YGG_USERNAME: "votre_username"
+      YGG_PASSWORD: "votre_password"
+      # FLARESOLVERR_URL: "http://flaresolverr:8191"   # Décommenter pour activer
 
-## Configuration IMDB et TMDB
+  # Décommenter le bloc ci-dessous pour activer FlareSolverr :
+  # flaresolverr:
+  #   image: ghcr.io/flaresolverr/flaresolverr:latest
+  #   ports:
+  #     - "8191:8191"
+```
 
-Pour activer la récupération des métadonnées IMDB et TMDB, veuillez suivre les instructions du [guide d'assistance TMDB et IMDB](https://ygege.lila.ws/tmdb-imdb).
+```bash
+cd docker
+docker compose up -d
+```
 
-## Intégration à Prowlarr
+---
 
-Ygégé peut être utilisé comme indexeur personnalisé pour Prowlarr. Pour le mettre en place, trouvez votre répertoire AppData (situé dans la page `/system/status` de Prowlarr) et copiez le fichier `ygege.yml` du repo dans le dossier `{votre chemin appdata prowlarr}/Definitions/Custom`, vous aurez probablement besoin de créer le dossier `Custom`.
+## Intégration FlareSolverr (fallback Cloudflare)
 
-Une fois que c'est fait, redémarrez Prowlarr et allez dans les paramètres des indexeurs, vous devriez voir Ygégé dans la liste des indexeurs disponibles.
+FlareSolverr est un service qui résout les challenges Cloudflare via un vrai navigateur headless. Ygege l'utilise **uniquement en fallback** : si le bypass `wreq` classique échoue, ygege envoie une requête à FlareSolverr, récupère les cookies de résolution, les injecte dans son client HTTP, et reprend le flow normal.
+
+### Activer FlareSolverr
+
+1. Dans `docker/compose.yml`, décommentez le service `flaresolverr`
+2. Décommentez la ligne `FLARESOLVERR_URL` dans les env vars de `ygege`
+3. Relancez : `docker compose up -d`
+
+| Variable d'environnement | Description | Exemple |
+|---|---|---|
+| `FLARESOLVERR_URL` | URL du service FlareSolverr (optionnel) | `http://flaresolverr:8191` |
+
+---
+
+## Configuration
+
+| Variable | Description | Défaut |
+|---|---|---|
+| `YGG_USERNAME` | Identifiant YGG *(obligatoire)* | — |
+| `YGG_PASSWORD` | Mot de passe YGG *(obligatoire)* | — |
+| `BIND_IP` | IP d'écoute | `0.0.0.0` |
+| `BIND_PORT` | Port d'écoute | `8715` |
+| `LOG_LEVEL` | Niveau de log (`off`, `error`, `warn`, `info`, `debug`, `trace`) | `debug` |
+| `TMDB_TOKEN` | Token API TMDB (optionnel, pour recherche TMDB/IMDB) | — |
+| `YGG_DOMAIN` | Forcer un domaine YGG spécifique | auto-détecté |
+| `TURBO_ENABLED` | Mode turbo | `false` |
+| `FLARESOLVERR_URL` | URL FlareSolverr (optionnel) | — |
+
+---
+
+## Intégration Prowlarr / Jackett
+
+### Prowlarr
+
+Copiez `ygege.yml` dans `{appdata prowlarr}/Definitions/Custom/`, puis redémarrez Prowlarr.
 
 > [!NOTE]
-> Prowlarr ne permet pas de personnaliser le "Base URL". Par défaut, utilisez `http://localhost:8715/`. Pour les configurations Docker Compose, utilisez `http://ygege:8715/`. Alternativement, utilisez ygege-dns-redirect.local avec un DNS personnalisé ou en éditant le fichier hosts.
+> URL par défaut : `http://localhost:8715/`. En Docker Compose : `http://ygege:8715/`.
 
-## Intégration à Jackett
+### Jackett
 
-Ygégé peut être utilisé comme indexeur personnalisé pour Jackett. Pour le mettre en place, localisez votre répertoire AppData Jackett et copiez le fichier `ygege.yml` du dépôt dans le dossier `{votre chemin appdata jackett}/cardigann/definitions/`. Vous devrez peut-être créer le sous-dossier `cardigann/definitions/` s'il n'existe pas.
+Copiez `ygege.yml` dans `{appdata jackett}/cardigann/definitions/`, puis redémarrez Jackett.
 
-> [!NOTE]
-> L'image Docker LinuxServer Jackett fournit une structure de dossiers bien organisée. Si vous utilisez une autre image Docker, adaptez les chemins en conséquence.
+---
 
-Une fois terminé, redémarrez Jackett et accédez aux paramètres des indexeurs. Vous devriez voir Ygégé dans la liste des indexeurs disponibles.
+## Contournement Cloudflare — Comment ça marche
 
-## Contournement Cloudflare
-Pour contourner le défi de Cloudflare, Ygégé n'utilise pas de navigateur ni de services tiers.
+1. **Cookie magique** : Ygege injecte `account_created=true` pour désactiver le challenge CF initial
+2. **Émulation TLS/HTTP2** : Via [wreq](https://crates.io/crates/wreq), reproduction fidèle du fingerprint Chrome 132
+3. **Fallback FlareSolverr** *(nouveau)* : Si le cookie `ygg_` n'est pas obtenu, FlareSolverr résout le challenge via un vrai navigateur headless
 
-Une règle Cloudflare est appliquée sur le site YGG Torrent pour empêcher l'apparition du challenge Cloudflare via le cookie `account_created=true` censé garantir que l'utilisateur a un compte valide et est connecté.
+> [!WARNING]
+> L'émulation `wreq` ne fonctionne plus à partir de Chrome 133+ (HTTP/3). C'est la raison d'être de l'intégration FlareSolverr.
 
-Mais ce n'est pas si simple, Cloudflare vous surveille toujours et détecte les faux clients HTTPS et les faux navigateurs.
+Articles recommandés :
+- [TLS Fingerprinting](https://fingerprint.com/blog/what-is-tls-fingerprinting-transport-layer-security/)
+- [HTTP/2 Fingerprinting](https://www.trickster.dev/post/understanding-http2-fingerprinting/)
 
-Pour contourner cela, Ygégé utilise la librairie [wreq](https://crates.io/crates/wreq) qui est un client HTTP basé sur `reqwest` et `tokio` permettant de reproduire 1:1 l'échange TLS et HTTP/2 avec le serveur afin de simuler un vrai navigateur.
+---
 
-J'ai aussi remarqué que cela ne passait plus à partir de Chrome 133, sûrement à cause de l'integration de HTTP/3 dans Chrome qui n'est pas encore simulée par `wreq`.
+## Prérequis pour la compilation locale
 
-Je recommande aux curieux [cet article](https://fingerprint.com/blog/what-is-tls-fingerprinting-transport-layer-security/) qui explique comment fonctionne le fingerprinting TLS et [cet autre article](https://www.trickster.dev/post/understanding-http2-fingerprinting/) qui explique comment fonctionne le fingerprinting HTTP/2 et comment il est possible de le contourner.
+- Rust 1.85.0+
+- OpenSSL 3+
+- Dépendances de [wreq](https://crates.io/crates/wreq)
 
-## Test de performance
+Ou utilisez simplement Docker : voir le [Guide Docker](docs/build-docker-linux.md).
 
-Query pour la recherche:
-- Nom: `Vaiana 2`
-- Tri: `seeders`
-- Ordre: `descendant`
+---
 
-|                                     | Nombre de tests | Temps total de tous les tests | Temps moyen par test |
-|-------------------------------------|-----------------|-------------------------------|----------------------|
-| Résolution du domaine actuel de YGG |        25       |           3220,378ms          |      128,81512ms     |
-| Nouvelle connection YGG             |        10       |          4881.71361ms         |     488.1713616ms    |
-| Restoration de session YGG          |        10       |         2064.672142ms         |     206.4672142ms    |
-| Recherche                           |       100       |         17621.045874ms        |    176,21045874ms    |
+## Benchmarks
 
-# Documentation
+| Opération | Tests | Temps moyen |
+|---|---|---|
+| Résolution domaine YGG | 25 | ~129 ms |
+| Nouvelle connexion | 10 | ~488 ms |
+| Restauration de session | 10 | ~206 ms |
+| Recherche (`Vaiana 2`, tri seeders desc) | 100 | ~176 ms |
 
-## Documentation utilisateur
+---
 
-La documentation complète est disponible sur [ygege.lila.ws](https://ygege.lila.ws) :
-- [Guide de démarrage](https://ygege.lila.ws/getting-started)
-- [Installation](https://ygege.lila.ws/installation/docker-guide)
+## Documentation
+
+- [Guide Docker complet (compilation + utilisation)](docs/build-docker-linux.md)
 - [Configuration](https://ygege.lila.ws/configuration)
-- [Intégrations (Prowlarr/Jackett)](https://ygege.lila.ws/integrations/prowlarr)
-- [Documentation de l'API](https://ygege.lila.ws/api)
+- [API](https://ygege.lila.ws/api)
 - [FAQ](https://ygege.lila.ws/faq)
-
-## Documentation développeur
-
-Pour contribuer au projet ou comprendre le fonctionnement interne :
 - [Guide de contribution](docs/contribution-fr.md)
-- [Pipeline CI/CD](docs/ci_implementation-fr.md)
-- [Workflow de preview des PRs](docs/preview_workflow-fr.md)
-- [Workflow de release](docs/release_workflow-fr.md)

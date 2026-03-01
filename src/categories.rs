@@ -1,5 +1,6 @@
 use crate::DOMAIN;
 use crate::search::get_rate_limiter;
+use crate::flaresolverr::fetch_ygg_page;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use tokio::sync::OnceCell;
@@ -24,8 +25,7 @@ pub(crate) async fn scrape_categories(
     let _guard = get_rate_limiter().acquire().await;
     let url = format!("https://{}/", domain);
 
-    let response = client.get(&url).send().await?;
-    let body = response.text().await.unwrap_or_default();
+    let body = fetch_ygg_page(client, &url).await?;
     let document = Html::parse_document(&body);
 
     let mut categories_list = Vec::new();
