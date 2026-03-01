@@ -6,7 +6,7 @@ Indexeur haute performance pour YGG Torrent écrit en Rust
 
 ## [AVERTISSEMENT LÉGAL](DISCLAIMER-fr.md)
 
-> [!NOTE]
+
 > **🤖 Fork "Vibe Code" — Intégration FlareSolverr**
 >
 > Ce fork a été modifié par **vibe coding** (assisté par IA) pour intégrer [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) comme **mécanisme de fallback** contre les challenges Cloudflare.
@@ -140,17 +140,6 @@ Articles recommandés :
 - Dépendances de [wreq](https://crates.io/crates/wreq)
 
 Ou utilisez simplement Docker : voir le [Guide Docker](docs/build-docker-linux.md).
-
----
-
-## Benchmarks
-
-| Opération | Tests | Temps moyen |
-|---|---|---|
-| Résolution domaine YGG | 25 | ~129 ms |
-| Nouvelle connexion | 10 | ~488 ms |
-| Restauration de session | 10 | ~206 ms |
-| Recherche (`Vaiana 2`, tri seeders desc) | 100 | ~176 ms |
 
 ---
 
