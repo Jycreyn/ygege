@@ -56,7 +56,8 @@ services:
     volumes:
       - ygege-sessions:/app/sessions
     depends_on:
-      - flaresolverr
+      flaresolverr:
+        condition: service_healthy
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
