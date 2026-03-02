@@ -1,0 +1,257 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: 🐳 Docker GHCR
+
+on:
+  push:
+    branches:
+      - develop
+      - master
+    paths-ignore:
+      - '**.md'
+      - 'website/**'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'SECURITY.md'
+      - 'LICENSE'
+      - 'CONTRIBUTING.md'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-ghcr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    outputs:
+      digest-amd64: ${{ steps.set_outputs.outputs.digest-amd64 }}
+      digest-arm64: ${{ steps.set_outputs.outputs.digest-arm64 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lower case owner name
+        run: echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: |
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            BUILD_BRANCH=${{ github.ref_name }}
+          outputs: type=image,push-by-digest=true,name=ghcr.io/${{ env.OWNER_LC }}/ygege,push=true
+          cache-from: type=gha,scope=ghcr-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=ghcr-${{ matrix.platform }}
+          provenance: false
+
+      - name: Set outputs
+        id: set_outputs
+        run: |
+          platform="${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}"
+          echo "digest-${platform}=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+  build-noupx:
+    name: Build no-UPX (${{ matrix.platform }})
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    outputs:
+      digest-amd64: ${{ steps.set_outputs.outputs.digest-amd64 }}
+      digest-arm64: ${{ steps.set_outputs.outputs.digest-arm64 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lower case owner name
+        run: echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Build and push by digest (no-UPX)
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: |
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            BUILD_BRANCH=${{ github.ref_name }}
+            SKIP_UPX=1
+          outputs: type=image,push-by-digest=true,name=ghcr.io/${{ env.OWNER_LC }}/ygege,push=true
+          cache-from: type=gha,scope=ghcr-noupx-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=ghcr-noupx-${{ matrix.platform }}
+          provenance: false
+
+      - name: Set outputs
+        id: set_outputs
+        run: |
+          platform="${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}"
+          echo "digest-${platform}=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+  manifest:
+    name: Create multi-arch manifest
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lower case owner name
+        run: echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Determine tags
+        id: tags
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION_NUM="${VERSION#v}"
+            if [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              MAJOR=$(echo "$VERSION_NUM" | cut -d. -f1)
+              MINOR=$(echo "$VERSION_NUM" | cut -d. -f1-2)
+              TAGS="$VERSION_NUM $MINOR $MAJOR stable latest"
+            else
+              TAGS="$VERSION_NUM"
+            fi
+          elif [[ "${{ github.ref_name }}" == "master" ]]; then
+            VERSION=$(grep '^version =' Cargo.toml | head -1 | cut -d '"' -f2)
+            TAGS="master latest stable $VERSION"
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+            TAGS="develop"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
+      - name: Create and push manifests
+        run: |
+          for TAG in ${{ steps.tags.outputs.tags }}; do
+            docker manifest create ghcr.io/${{ env.OWNER_LC }}/ygege:$TAG \
+              --amend ghcr.io/${{ env.OWNER_LC }}/ygege@${{ needs.build.outputs.digest-amd64 }} \
+              --amend ghcr.io/${{ env.OWNER_LC }}/ygege@${{ needs.build.outputs.digest-arm64 }}
+            docker manifest push ghcr.io/${{ env.OWNER_LC }}/ygege:$TAG
+          done
+
+  manifest-noupx:
+    name: Create multi-arch manifest (no-UPX)
+    needs: build-noupx
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lower case owner name
+        run: echo "OWNER_LC=${OWNER,,}" >> $GITHUB_ENV
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Determine tags (no-UPX)
+        id: tags
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION_NUM="${VERSION#v}"
+            if [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              MAJOR=$(echo "$VERSION_NUM" | cut -d. -f1)
+              MINOR=$(echo "$VERSION_NUM" | cut -d. -f1-2)
+              TAGS="${VERSION_NUM}-noupx ${MINOR}-noupx ${MAJOR}-noupx stable-noupx noupx"
+            else
+              TAGS="${VERSION_NUM}-noupx"
+            fi
+          elif [[ "${{ github.ref_name }}" == "master" ]]; then
+            VERSION=$(grep '^version =' Cargo.toml | head -1 | cut -d '"' -f2)
+            TAGS="noupx latest-noupx stable-noupx $VERSION-noupx"
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+            TAGS="develop-noupx"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
+      - name: Create and push manifests (no-UPX)
+        run: |
+          for TAG in ${{ steps.tags.outputs.tags }}; do
+            docker manifest create ghcr.io/${{ env.OWNER_LC }}/ygege:$TAG \
+              --amend ghcr.io/${{ env.OWNER_LC }}/ygege@${{ needs.build-noupx.outputs.digest-amd64 }} \
+              --amend ghcr.io/${{ env.OWNER_LC }}/ygege@${{ needs.build-noupx.outputs.digest-arm64 }}
+            docker manifest push ghcr.io/${{ env.OWNER_LC }}/ygege:$TAG
+          done
