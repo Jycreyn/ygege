@@ -138,7 +138,6 @@ async fn download_torrent_binary(
     let solution = fs.solve_with_session(url, 60000, Some(&session_id)).await?;
     Ok(solution.response.into_bytes())
 }
-}
 
 /// Extract token from JSON response (handles both plain JSON and HTML-wrapped JSON from FlareSolverr)
 fn extract_token_from_json(raw: &str) -> Result<String, Box<dyn std::error::Error>> {
