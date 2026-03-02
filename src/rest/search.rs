@@ -26,114 +26,113 @@ async fn batch_best_search(
         debug!("Query #{}: {}", idx + 1, query);
     }
 
-    let search_futures: Vec<_> = queries
-        .iter()
-        .map(|query| {
-            search(
-                query.as_str(),
-                offset,
-                category,
-                sub_category,
-                sort,
-                order,
-                ban_words.clone(),
-                quote_search,
-            )
-        })
-        .collect();
+    let mut attempts = 0;
+    loop {
+        let search_futures: Vec<_> = queries
+            .iter()
+            .map(|query| {
+                search(
+                    query.as_str(),
+                    offset,
+                    category,
+                    sub_category,
+                    sort,
+                    order,
+                    ban_words.clone(),
+                    quote_search,
+                )
+            })
+            .collect();
 
-    let results = join_all(search_futures).await;
+        let results = join_all(search_futures).await;
 
-    let mut collected_torrents: HashSet<Torrent> = HashSet::new();
+        let mut collected_torrents: HashSet<Torrent> = HashSet::new();
 
-    for (idx, result) in results.into_iter().enumerate() {
-        match result {
-            Ok(mut torrents) => {
-                if torrents.len() > 5 {
-                    debug!(
-                        "Found {} torrents for query #{} ({}) - returning immediately (> 5)",
-                        torrents.len(),
-                        idx + 1,
-                        queries[idx]
-                    );
-                    Torrent::sort(&mut torrents, sort, order);
-                    return Ok(torrents);
-                } else if torrents.len() >= 5 {
-                    debug!(
-                        "Found {} torrents for query #{} ({}) - collecting for merge",
-                        torrents.len(),
-                        idx + 1,
-                        queries[idx]
-                    );
-                    torrents.into_iter().for_each(|t| {
-                        collected_torrents.insert(t);
-                    });
-                } else if !torrents.is_empty() && collected_torrents.is_empty() {
-                    debug!(
-                        "Found {} torrents for query #{} ({}) - collecting as fallback",
-                        torrents.len(),
-                        idx + 1,
-                        queries[idx]
-                    );
-                    torrents.into_iter().for_each(|t| {
-                        collected_torrents.insert(t);
-                    });
-                } else {
-                    debug!(
-                        "Query #{} ({}) returned {} results",
-                        idx + 1,
-                        queries[idx],
-                        torrents.len()
-                    );
+        let mut session_renewed = false;
+
+        for (idx, result) in results.into_iter().enumerate() {
+            match result {
+                Ok(mut torrents) => {
+                    if torrents.len() > 5 {
+                        debug!(
+                            "Found {} torrents for query #{} ({}) - returning immediately (> 5)",
+                            torrents.len(),
+                            idx + 1,
+                            queries[idx]
+                        );
+                        Torrent::sort(&mut torrents, sort, order);
+                        return Ok(torrents);
+                    } else if torrents.len() >= 5 {
+                        debug!(
+                            "Found {} torrents for query #{} ({}) - collecting for merge",
+                            torrents.len(),
+                            idx + 1,
+                            queries[idx]
+                        );
+                        torrents.into_iter().for_each(|t| {
+                            collected_torrents.insert(t);
+                        });
+                    } else if !torrents.is_empty() && collected_torrents.is_empty() {
+                        debug!(
+                            "Found {} torrents for query #{} ({}) - collecting as fallback",
+                            torrents.len(),
+                            idx + 1,
+                            queries[idx]
+                        );
+                        torrents.into_iter().for_each(|t| {
+                            collected_torrents.insert(t);
+                        });
+                    } else {
+                        debug!(
+                            "Query #{} ({}) returned {} results",
+                            idx + 1,
+                            queries[idx],
+                            torrents.len()
+                        );
+                    }
                 }
-            }
-            Err(e) => {
-                if e.to_string().contains("Session expired") {
-                    info!("Session expired during TMDB search, attempting renewal...");
-                    let _ = crate::auth::login_with_flaresolverr(
-                        config.username.as_str(),
-                        config.password.as_str(),
-                        true,
-                        config.flaresolverr_url.as_deref(),
-                    )
-                    .await?;
-
-                    return batch_best_search(
-                        queries,
-                        offset,
-                        category,
-                        sub_category,
-                        sort,
-                        order,
-                        ban_words,
-                        quote_search,
-                        config,
-                    )
-                    .await;
-                } else {
-                    warn!(
-                        "Search failed for query #{} ({}): {}",
-                        idx + 1,
-                        queries[idx],
-                        e
-                    );
+                Err(e) => {
+                    if e.to_string().contains("Session expired") && attempts == 0 {
+                        info!("Session expired during TMDB search, attempting renewal...");
+                        let _ = crate::auth::login_with_flaresolverr(
+                            config.username.as_str(),
+                            config.password.as_str(),
+                            true,
+                            config.flaresolverr_url.as_deref(),
+                        )
+                        .await?;
+                        session_renewed = true;
+                        break;
+                    } else {
+                        warn!(
+                            "Search failed for query #{} ({}): {}",
+                            idx + 1,
+                            queries[idx],
+                            e
+                        );
+                    }
                 }
             }
         }
-    }
 
-    if !collected_torrents.is_empty() {
-        debug!(
-            "Returning {} merged torrents from multiple queries",
-            collected_torrents.len()
-        );
-        let mut torrents: Vec<Torrent> = collected_torrents.into_iter().collect();
-        Torrent::sort(&mut torrents, sort, order);
-        return Ok(torrents);
-    }
+        if session_renewed {
+            attempts += 1;
+            continue; // retry once after renewing session
+        }
 
-    debug!("All TMDB queries returned empty results");
-    Ok(vec![])
+        if !collected_torrents.is_empty() {
+            debug!(
+                "Returning {} merged torrents from multiple queries",
+                collected_torrents.len()
+            );
+            let mut torrents: Vec<Torrent> = collected_torrents.into_iter().collect();
+            Torrent::sort(&mut torrents, sort, order);
+            return Ok(torrents);
+        }
+
+        debug!("All TMDB queries returned empty results");
+        return Ok(vec![]);
+    }
 }
 
 async fn batch_category_search(

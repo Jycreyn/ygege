@@ -17,7 +17,11 @@ pub async fn get_ygg_domain() -> Result<String, Box<dyn std::error::Error>> {
         let task = tokio::spawn(async move {
             // Use FlareSolverr to resolve redirects/CF
             let url = format!("https://{}", domain_clone);
-            let solution = FlareSolverrClient::fetch_page_with_solution(&url).await?;
+            let solution_res = FlareSolverrClient::fetch_page_with_solution(&url).await;
+            let solution = match solution_res {
+                Ok(s) => s,
+                Err(e) => return Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+            };
             let resolved = solution
                 .url
                 .split('/')
