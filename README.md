@@ -48,12 +48,11 @@ services:
     ports:
       - "8715:8715"
     environment:
-      - YGG_USERNAME=${YGG_USERNAME}
-      - YGG_PASSWORD=${YGG_PASSWORD}
+      - YGG_USERNAME=ton_pseudo        # Idéalement à mettre dans un .env
+      - YGG_PASSWORD=ton_mot_de_passe  # Idéalement à mettre dans un .env
       - BIND_PORT=8715
       - LOG_LEVEL=info
       - FLARESOLVERR_URL=http://flaresolverr:8191
-      # - TMDB_TOKEN=${TMDB_TOKEN}
     volumes:
       - ygege-sessions:/app/sessions
     depends_on:
@@ -63,9 +62,9 @@ services:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     restart: unless-stopped
-    # Port exposé uniquement si tu veux tester l'API FlareSolverr depuis ton navigateur
+    # Port 8191 facultatif ici, ygege utilise le nom du service en interne
     ports:
-      - "8191:8191"
+      - "8191:8191" 
     environment:
       - LOG_LEVEL=info
 
