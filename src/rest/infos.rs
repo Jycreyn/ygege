@@ -2,14 +2,13 @@ use crate::config::Config;
 use crate::rest::client_extractor::MaybeCustomClient;
 use crate::search::{Order, Sort, search};
 use crate::utils::get_remaining_downloads;
-use crate::{DOMAIN, resolver};
+use crate::DOMAIN;
 use actix_web::{HttpResponse, get, web};
 use std::net::SocketAddr;
-use std::str::FromStr;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
-use wreq::dns::Resolve;
+use trust_dns_resolver::TokioAsyncResolver;
 
 #[get("/health")]
 pub async fn health_check() -> HttpResponse {
@@ -24,7 +23,6 @@ pub async fn status_check(data: MaybeCustomClient, config: web::Data<Config>) ->
     drop(domain_lock);
 
     let search = search(
-        &data.client,
         "Vaiana",
         None,
         None,
@@ -63,47 +61,35 @@ pub async fn status_check(data: MaybeCustomClient, config: web::Data<Config>) ->
         }
     }
 
-    let user = crate::user::get_account(&data.client).await;
+    let user = crate::user::get_account().await;
     let user_status = match user.is_ok() {
         true => "ok",
         false => "failed",
     };
 
-    let resolver = resolver::AsyncDNSResolverAdapter::new().unwrap();
     let mut domain_ping = "unreachable";
-    let dns_lookup = match resolver
-        .resolve(wreq::dns::Name::from_str(domain).unwrap())
-        .await
+    let dns_lookup = match TokioAsyncResolver::tokio_from_system_conf()
+        .and_then(|r| futures::executor::block_on(r.lookup_ip(domain.clone())))
     {
-        Ok(ip) => {
-            // convert wreq::dns::resolve::Addrs to core::net::ip_addr::IpAddr
-            let ip = ip
-                .into_iter()
-                .next()
-                .and_then(|socket_addr| Some(socket_addr.ip()));
-
-            if ip.is_some() {
-                let ip_addr = ip.unwrap();
+        Ok(lookup) => {
+            if let Some(ip_addr) = lookup.iter().next() {
                 info!("Resolved IP: {}", ip_addr);
-
                 let socket_addr = SocketAddr::new(ip_addr, 443);
-                domain_ping =
-                    match timeout(Duration::from_secs(5), TcpStream::connect(socket_addr)).await {
-                        Ok(Ok(_)) => {
-                            info!("TCP connection to {} successful", socket_addr);
-                            "reachable"
-                        }
-                        Ok(Err(e)) => {
-                            error!("TCP connection failed: {}", e);
-                            "unreachable"
-                        }
-                        Err(_) => {
-                            error!("TCP connection timeout");
-                            "timeout"
-                        }
-                    };
+                domain_ping = match timeout(Duration::from_secs(5), TcpStream::connect(socket_addr)).await {
+                    Ok(Ok(_)) => {
+                        info!("TCP connection to {} successful", socket_addr);
+                        "reachable"
+                    }
+                    Ok(Err(e)) => {
+                        error!("TCP connection failed: {}", e);
+                        "unreachable"
+                    }
+                    Err(_) => {
+                        error!("TCP connection timeout");
+                        "timeout"
+                    }
+                };
             }
-
             "resolves"
         }
         Err(_) => "does_not_resolve",
@@ -114,7 +100,7 @@ pub async fn status_check(data: MaybeCustomClient, config: web::Data<Config>) ->
         false => "disabled",
     };
 
-    let remain = match get_remaining_downloads(&data.client).await {
+    let remain = match get_remaining_downloads().await {
         Ok(n) => n as i32,
         Err(e) => {
             error!("Failed to get remaining downloads: {}", e);

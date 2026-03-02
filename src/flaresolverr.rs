@@ -2,6 +2,7 @@ use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use tokio::sync::RwLock;
+use reqwest::Client;
 
 /// Global FlareSolverr client, initialized if FLARESOLVERR_URL is set
 pub static FLARESOLVERR: OnceLock<FlareSolverrClient> = OnceLock::new();
@@ -23,7 +24,7 @@ fn get_user_agent_lock() -> &'static RwLock<Option<String>> {
 /// Client FlareSolverr pour bypasser Cloudflare en fallback
 pub struct FlareSolverrClient {
     url: String,
-    client: wreq::Client,
+    client: reqwest::Client,
 }
 
 // --- Request/Response structs ---
@@ -95,7 +96,7 @@ pub struct FlareSolverrCookie {
 
 impl FlareSolverrClient {
     pub fn new(url: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = wreq::Client::builder().build()?;
+        let client = reqwest::Client::builder().build()?;
         Ok(Self {
             url: url.trim_end_matches('/').to_string(),
             client,
@@ -263,115 +264,29 @@ impl FlareSolverrClient {
 }
 
 
-/// Centralized function to fetch a YGG YGG page.
-/// Tries wreq first, falls back to FlareSolverr (with persistent session) if CF blocks.
-pub async fn fetch_ygg_page(
-    client: &wreq::Client,
-    url: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    // Try wreq first
-    match client.get(url).send().await {
-        Ok(response) => {
-            let status = response.status();
-            if status.is_success() {
-                return response
-                    .text()
-                    .await
-                    .map_err(|e| format!("Failed to read response body: {}", e).into());
-            }
-
-            // CF block — fallback to FlareSolverr with session
-            if status.as_u16() == 307 || status.as_u16() == 302
-                || status.as_u16() == 403 || status.as_u16() == 503
-            {
-                warn!(
-                    "wreq blocked by CF (HTTP {}) for {} — falling back to FlareSolverr",
-                    status, url
-                );
-                if FlareSolverrClient::is_available() {
-                    return FlareSolverrClient::fetch_page(url).await;
-                } else {
-                    return Err(format!(
-                        "CF blocked (HTTP {}) and FlareSolverr not configured", status
-                    ).into());
-                }
-            }
-
-            Err(format!("HTTP error {} for {}", status, url).into())
-        }
-        Err(e) => {
-            warn!("wreq request failed for {}: {} — trying FlareSolverr", url, e);
-            if FlareSolverrClient::is_available() {
-                FlareSolverrClient::fetch_page(url).await
-            } else {
-                Err(format!("Request failed and FlareSolverr not configured: {}", e).into())
-            }
-        }
+/// Centralized function to fetch a YGG page using FlareSolverr.
+/// This project now relies on FlareSolverr for all YGG requests.
+pub async fn fetch_ygg_page(url: &str) -> Result<String, Box<dyn std::error::Error>> {
+    if FlareSolverrClient::is_available() {
+        FlareSolverrClient::fetch_page(url).await
+    } else {
+        Err("FlareSolverr not configured (set FLARESOLVERR_URL)".into())
     }
 }
 
-/// Centralized function to fetch a YGG POST page (e.g., token).
-/// Tries wreq first, falls back to FlareSolverr (with persistent session) if CF blocks.
-pub async fn fetch_ygg_post(
-    client: &wreq::Client,
-    url: &str,
-    post_data: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut headers = wreq::header::HeaderMap::new();
-    headers.insert(
-        "Content-Type",
-        "application/x-www-form-urlencoded; charset=UTF-8".parse().unwrap(),
-    );
-
-    // Try wreq first
-    match client.post(url).headers(headers).body(post_data.to_string()).send().await {
-        Ok(response) => {
-            let status = response.status();
-            if status.is_success() {
-                return response
-                    .text()
-                    .await
-                    .map_err(|e| format!("Failed to read response body: {}", e).into());
-            }
-
-            // CF block — fallback to FlareSolverr with session
-            if status.as_u16() == 307 || status.as_u16() == 302
-                || status.as_u16() == 403 || status.as_u16() == 503
-            {
-                warn!(
-                    "wreq blocked by CF (HTTP {}) for POST {} — falling back to FlareSolverr",
-                    status, url
-                );
-                if FlareSolverrClient::is_available() {
-                    let fs = FLARESOLVERR.get().unwrap();
-                    let session_id = match FlareSolverrClient::get_session_id().await {
-                        Some(id) => id,
-                        None => fs.create_session().await?
-                    };
-                    let solution = fs.solve_post(url, post_data, None, 60000, Some(&session_id)).await?;
-                    return Ok(solution.response);
-                } else {
-                    return Err(format!(
-                        "CF blocked (HTTP {}) and FlareSolverr not configured", status
-                    ).into());
-                }
-            }
-
-            Err(format!("HTTP error {} for {}", status, url).into())
-        }
-        Err(e) => {
-            warn!("wreq POST request failed for {}: {} — trying FlareSolverr", url, e);
-            if FlareSolverrClient::is_available() {
-                let fs = FLARESOLVERR.get().unwrap();
-                let session_id = match FlareSolverrClient::get_session_id().await {
-                    Some(id) => id,
-                    None => fs.create_session().await?
-                };
-                let solution = fs.solve_post(url, post_data, None, 60000, Some(&session_id)).await?;
-                Ok(solution.response)
-            } else {
-                Err(format!("Request failed and FlareSolverr not configured: {}", e).into())
-            }
-        }
+/// Centralized function to POST to a YGG endpoint using FlareSolverr.
+pub async fn fetch_ygg_post(url: &str, post_data: &str) -> Result<String, Box<dyn std::error::Error>> {
+    if FlareSolverrClient::is_available() {
+        let fs = FLARESOLVERR.get().unwrap();
+        let session_id = match FlareSolverrClient::get_session_id().await {
+            Some(id) => id,
+            None => fs.create_session().await?,
+        };
+        let solution = fs
+            .solve_post(url, post_data, None, 60000, Some(&session_id))
+            .await?;
+        Ok(solution.response)
+    } else {
+        Err("FlareSolverr not configured (set FLARESOLVERR_URL)".into())
     }
 }

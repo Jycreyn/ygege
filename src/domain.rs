@@ -1,7 +1,5 @@
-use crate::resolver::AsyncDNSResolverAdapter;
-use std::sync::{Arc, OnceLock};
-use wreq::Client;
-use wreq_util::{Emulation, EmulationOS, EmulationOption};
+use std::sync::OnceLock;
+use crate::flaresolverr::FlareSolverrClient;
 
 const CURRENT_REDIRECT_DOMAINS: [&str; 4] =
     ["yggtorrent.ch", "ygg.to", "yggtorrent.to", "yggtorrent.is"];
@@ -9,49 +7,24 @@ const CURRENT_REDIRECT_DOMAINS: [&str; 4] =
 pub static OWN_IP: OnceLock<String> = OnceLock::new();
 
 pub async fn get_ygg_domain() -> Result<String, Box<dyn std::error::Error>> {
-    let emu = EmulationOption::builder()
-        .emulation(Emulation::Chrome132) // no H3 check on CF before 133
-        .emulation_os(EmulationOS::Windows)
-        .build();
-
-    let fallback_dns = Arc::new(AsyncDNSResolverAdapter::new()?);
-
-    debug!("Getting YGG current domain by trying all base domains in parallel");
+    debug!("Getting YGG current domain by trying all base domains in parallel via FlareSolverr");
 
     let start = std::time::Instant::now();
 
     let mut tasks = Vec::new();
     for &base_domain in &CURRENT_REDIRECT_DOMAINS {
-        let emu = emu.clone();
-        let fallback_dns = fallback_dns.clone();
+        let domain_clone = base_domain.to_string();
         let task = tokio::spawn(async move {
-            let client = Client::builder()
-                .emulation(emu)
-                .gzip(true)
-                .deflate(true)
-                .brotli(true)
-                .zstd(true)
-                .cookie_store(true)
-                .dns_resolver(fallback_dns)
-                .build()?;
-
-            let response = client
-                .get(format!("https://{}", base_domain))
-                .send()
-                .await?;
-
-            let domain = if let Some(location) = response.headers().get("location") {
-                let location_str = location.to_str()?;
-                location_str
-                    .split('/')
-                    .nth(2)
-                    .ok_or("No domain found")?
-                    .to_string()
-            } else {
-                base_domain.to_string()
-            };
-
-            Ok::<String, Box<dyn std::error::Error + Send + Sync>>(domain)
+            // Use FlareSolverr to resolve redirects/CF
+            let url = format!("https://{}", domain_clone);
+            let solution = FlareSolverrClient::fetch_page_with_solution(&url).await?;
+            let resolved = solution
+                .url
+                .split('/')
+                .nth(2)
+                .ok_or("No domain found")?
+                .to_string();
+            Ok::<String, Box<dyn std::error::Error + Send + Sync>>(resolved)
         });
         tasks.push(task);
     }
@@ -86,53 +59,13 @@ pub async fn get_ygg_domain() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 pub async fn get_own_ip() -> Result<String, Box<dyn std::error::Error>> {
-    let emu = EmulationOption::builder()
-        .emulation(Emulation::Chrome132) // no H3 check on CF before 133
-        .emulation_os(EmulationOS::Windows)
-        .build();
-
-    let client = Client::builder()
-        .emulation(emu)
-        .gzip(true)
-        .deflate(true)
-        .brotli(true)
-        .zstd(true)
-        .cookie_store(true)
-        .dns_resolver(Arc::new(AsyncDNSResolverAdapter::new()?))
-        .build()?;
-
-    let response = client
-        .get("https://api64.ipify.org?format=text")
-        .send()
-        .await?;
-
-    let ip = response.text().await?;
-    Ok(ip)
+    let body = FlareSolverrClient::fetch_page("https://api64.ipify.org?format=text").await?;
+    Ok(body)
 }
 
 pub async fn get_leaked_ip() -> Result<String, Box<dyn std::error::Error>> {
-    let emu = EmulationOption::builder()
-        .emulation(Emulation::Chrome132) // no H3 check on CF before 133
-        .emulation_os(EmulationOS::Windows)
-        .build();
-
-    let client = Client::builder()
-        .emulation(emu)
-        .gzip(true)
-        .deflate(true)
-        .brotli(true)
-        .zstd(true)
-        .cookie_store(true)
-        .dns_resolver(Arc::new(AsyncDNSResolverAdapter::new()?))
-        .build()?;
-
-    let response = client
-        .get("https://pastebin.com/raw/jFZt5UHb")
-        .send()
-        .await?;
-
-    let ip = response.text().await?;
-    Ok(ip.trim().to_string())
+    let body = FlareSolverrClient::fetch_page("https://pastebin.com/raw/jFZt5UHb").await?;
+    Ok(body.trim().to_string())
 }
 
 #[cfg(test)]

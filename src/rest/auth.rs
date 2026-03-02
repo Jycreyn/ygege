@@ -1,5 +1,5 @@
 use crate::DOMAIN;
-use crate::auth::login;
+use crate::auth::login_with_flaresolverr;
 use actix_web::{HttpRequest, HttpResponse, get};
 
 #[get("/auth")]
@@ -19,26 +19,17 @@ pub async fn auth(req_data: HttpRequest) -> Result<HttpResponse, Box<dyn std::er
         }
     };
 
-    let client = login(&user, &pass, false).await;
-    match client {
-        Ok(client) => {
-            let domain_lock = DOMAIN.lock()?;
-            let cloned_guard = domain_lock.clone();
-            let domain = cloned_guard.as_str();
-            drop(domain_lock);
-
-            let url = wreq::Url::parse(&format!("https://{}/", domain)).unwrap();
-            let cookies = client.get_cookies(&url);
-            match cookies {
-                Some(cookies_header) => {
-                    let cookie_str = cookies_header.to_str().unwrap_or("").to_string();
-                    info!("Login successful for user {}: cookies={}", user, cookie_str);
-                    let mut response = HttpResponse::Ok();
-                    response.insert_header(("X-Session-Cookies", cookie_str.clone()));
-                    Ok(response.body(cookie_str))
-                }
-                None => Ok(HttpResponse::Ok().body("Login successful, but no cookies found")),
+    let res = login_with_flaresolverr(&user, &pass, false, None).await;
+    match res {
+        Ok(()) => {
+            // Read session file if created
+            let session_file = format!("sessions/{}.cookies", user);
+            if let Ok(cookies) = std::fs::read_to_string(&session_file) {
+                let mut response = HttpResponse::Ok();
+                response.insert_header(("X-Session-Cookies", cookies.clone()));
+                return Ok(response.body(cookies));
             }
+            Ok(HttpResponse::Ok().body("Login successful"))
         }
         Err(e) => {
             error!("Login failed for user {}: {}", user, e);

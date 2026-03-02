@@ -4,7 +4,6 @@ use crate::flaresolverr::fetch_ygg_page;
 use scraper::{Html, Selector};
 use serde::Serialize;
 use tokio::sync::OnceCell;
-use wreq::Client;
 
 pub static CATEGORIES_CACHE: OnceCell<Vec<Category>> = OnceCell::const_new();
 
@@ -15,9 +14,7 @@ pub struct Category {
     pub sub_categories: Vec<Category>,
 }
 
-pub(crate) async fn scrape_categories(
-    client: &Client,
-) -> Result<Vec<Category>, Box<dyn std::error::Error>> {
+pub(crate) async fn scrape_categories() -> Result<Vec<Category>, Box<dyn std::error::Error>> {
     let domain_lock = DOMAIN.lock().unwrap();
     let domain = domain_lock.clone();
     drop(domain_lock);
@@ -25,7 +22,7 @@ pub(crate) async fn scrape_categories(
     let _guard = get_rate_limiter().acquire().await;
     let url = format!("https://{}/", domain);
 
-    let body = fetch_ygg_page(client, &url).await?;
+    let body = fetch_ygg_page(&url).await?;
     let document = Html::parse_document(&body);
 
     let mut categories_list = Vec::new();
@@ -80,9 +77,9 @@ pub(crate) async fn scrape_categories(
     Ok(categories_list)
 }
 
-pub async fn init_categories(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_categories() -> Result<(), Box<dyn std::error::Error>> {
     debug!("Initializing categories cache...");
-    let categories_data = scrape_categories(client).await?;
+    let categories_data = scrape_categories().await?;
     debug!("Cached {} categories", categories_data.len());
     CATEGORIES_CACHE
         .set(categories_data)

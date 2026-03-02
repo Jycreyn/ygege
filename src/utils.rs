@@ -1,9 +1,7 @@
 use crate::DOMAIN;
 use crate::flaresolverr::fetch_ygg_page;
 
-pub async fn get_remaining_downloads(
-    client: &wreq::Client,
-) -> Result<u16, Box<dyn std::error::Error>> {
+pub async fn get_remaining_downloads() -> Result<u16, Box<dyn std::error::Error>> {
     debug!("Fetching remaining downloads information");
 
     let domain = {
@@ -15,7 +13,7 @@ pub async fn get_remaining_downloads(
         "https://{}//torrent/application/windows/316475-microsoft-toolkit-v2-6-4-activateur-office-2016---2019-windows-10",
         domain
     );
-    let body = fetch_ygg_page(client, &url).await?;
+    let body = fetch_ygg_page(&url).await?;
     if body.contains("Limite atteinte") {
         return Ok(0);
     }

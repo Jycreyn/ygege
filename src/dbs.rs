@@ -1,11 +1,12 @@
-use wreq::Client;
+use reqwest::Client;
+use reqwest::header::AUTHORIZATION;
 
 pub async fn get_account_username(token: &String) -> Result<String, Box<dyn std::error::Error>> {
     debug!("Fetching TMDB account username");
     let client = Client::new();
     let response = client
         .get("https://api.themoviedb.org/3/account")
-        .header("Authorization", format!("Bearer {}", token))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
         .header("accept", "application/json")
         .send()
         .await?;
@@ -114,7 +115,7 @@ pub async fn get_queries(
     };
     let response = client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", token))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
         .header("accept", "application/json")
         .send()
         .await?;
@@ -173,7 +174,7 @@ pub async fn get_queries(
     );
     let alt_response = client
         .get(&alt_url)
-        .header("Authorization", format!("Bearer {}", token))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
         .header("accept", "application/json")
         .send()
         .await?;

@@ -15,7 +15,7 @@ pub async fn categories(data: MaybeCustomClient) -> HttpResponse {
 
     // If cache is empty (shouldn't happen after startup), scrape now
     warn!("Categories cache was empty, scraping now...");
-    match crate::categories::scrape_categories(&data.client).await {
+    match crate::categories::scrape_categories().await {
         Ok(categories) => {
             let _ = CATEGORIES_CACHE.set(categories.clone());
             let mut response = HttpResponse::Ok();

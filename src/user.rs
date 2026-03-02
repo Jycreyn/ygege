@@ -23,7 +23,7 @@ pub struct UserAccount {
     pub country_code: Option<String>,
 }
 
-pub async fn get_account(client: &wreq::Client) -> Result<UserAccount, Box<dyn std::error::Error>> {
+pub async fn get_account() -> Result<UserAccount, Box<dyn std::error::Error>> {
     debug!("Fetching user account information");
 
     let domain = {
@@ -32,7 +32,7 @@ pub async fn get_account(client: &wreq::Client) -> Result<UserAccount, Box<dyn s
     };
 
     let url = format!("https://{}/user/account", domain);
-    let body = fetch_ygg_page(client, &url).await?;
+    let body = fetch_ygg_page(&url).await?;
 
     let document = scraper::Html::parse_document(&body);
     let mut account = UserAccount::default();
@@ -204,7 +204,7 @@ fn convert_size_to_bytes(size_str: &str) -> Result<u128, Box<dyn std::error::Err
 #[cfg(test)]
 mod tests_user {
     use super::*;
-    use crate::auth::login;
+    use crate::auth::login_with_flaresolverr;
     use crate::config;
     use crate::domain::get_ygg_domain;
 
@@ -221,9 +221,9 @@ mod tests_user {
         let config = config::load_config()?;
 
         std::fs::create_dir_all("sessions")?;
-        let client = login(config.username.as_str(), config.password.as_str(), true).await?;
+        let _ = login_with_flaresolverr(config.username.as_str(), config.password.as_str(), true, config.flaresolverr_url.as_deref()).await?;
 
-        let account = get_account(&client).await?;
+        let account = get_account().await?;
         println!("Account : {:?}", account);
         Ok(())
     }

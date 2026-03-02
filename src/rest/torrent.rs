@@ -5,7 +5,6 @@ use crate::flaresolverr::{FLARESOLVERR, FlareSolverrClient, FlareSolverrCookie};
 use actix_web::{HttpRequest, HttpResponse, get, web};
 use serde_json::Value;
 use tokio::time::{Duration, sleep};
-use wreq::header::HeaderMap;
 
 #[get("/torrent/{id:[0-9]+}")]
 pub async fn download_torrent(
@@ -30,11 +29,7 @@ pub async fn download_torrent(
     // We need valid CF cookies to make direct wreq requests.
     // Strategy: try wreq first; if CF blocks, use FlareSolverr to get cookies, then retry wreq.
 
-    let (token, cf_cookies, cf_ua) = get_download_token(
-        &data.client,
-        &token_url,
-        &body_str,
-    ).await?;
+    let (token, cf_cookies, cf_ua) = get_download_token(&token_url, &body_str).await?;
 
     debug!("Token response: {}", token);
 
@@ -55,13 +50,7 @@ pub async fn download_torrent(
     );
     debug!("download URL {}", download_url);
 
-    let torrent_bytes = download_torrent_binary(
-        &data.client,
-        &download_url,
-        cf_cookies.as_deref(),
-        cf_ua.as_deref(),
-        domain,
-    ).await?;
+    let torrent_bytes = download_torrent_binary(&download_url, cf_cookies.as_deref(), cf_ua.as_deref(), domain).await?;
 
     if torrent_bytes.is_empty() {
         return Err("Downloaded torrent file is empty".into());
@@ -96,51 +85,17 @@ pub async fn download_torrent(
 /// If CF blocks wreq, uses FlareSolverr's request.post to make the POST
 /// through a real browser, bypassing CF completely.
 async fn get_download_token(
-    client: &wreq::Client,
     url: &str,
     post_data: &str,
 ) -> Result<(String, Option<String>, Option<String>), Box<dyn std::error::Error>> {
-    let mut headers = HeaderMap::new();
-    headers.insert("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8".parse().unwrap());
-    headers.insert("X-Requested-With", "XMLHttpRequest".parse().unwrap());
-
-    // Try direct wreq POST first
-    match client
-        .post(url)
-        .headers(headers.clone())
-        .body(post_data.to_string())
-        .send()
-        .await
-    {
-        Ok(response) if response.status().is_success() => {
-            let text = response.text().await?;
-            let token = extract_token_from_json(&text)?;
-            return Ok((token, None, None));
-        }
-        Ok(response) => {
-            let status = response.status();
-            warn!("wreq POST request failed (HTTP {}) for {} — trying FlareSolverr request.post", status, url);
-        }
-        Err(e) => {
-            warn!("wreq POST request failed for {}: {} — trying FlareSolverr request.post", url, e);
-        }
-    }
-
-    // FlareSolverr fallback: use request.post to POST through a real browser
     if !FlareSolverrClient::is_available() {
-        return Err("CF blocked token request and FlareSolverr not configured".into());
+        return Err("FlareSolverr not configured".into());
     }
 
-    let fs = FLARESOLVERR
-        .get()
-        .ok_or("FlareSolverr not configured")?;
-
+    let fs = FLARESOLVERR.get().ok_or("FlareSolverr not configured")?;
     let session_id = match FlareSolverrClient::get_session_id().await {
         Some(id) => id,
-        None => {
-            info!("No FlareSolverr session exists, creating one for token POST...");
-            fs.create_session().await?
-        }
+        None => fs.create_session().await?,
     };
 
     info!("FlareSolverr: posting to {} via request.post", url);
@@ -148,10 +103,7 @@ async fn get_download_token(
         .solve_post(url, post_data, None, 60000, Some(&session_id))
         .await?;
 
-    // Extract token from the FlareSolverr response (HTML body containing JSON)
     let token = extract_token_from_json(&solution.response)?;
-
-    // Build cookie header from the solution for subsequent wreq requests (binary download)
     let domain = url
         .trim_start_matches("https://")
         .splitn(2, '/')
@@ -168,70 +120,24 @@ async fn get_download_token(
 /// If CF cookies are available, uses them directly.
 /// Otherwise tries wreq first, then gets cookies from FlareSolverr and retries.
 async fn download_torrent_binary(
-    client: &wreq::Client,
     url: &str,
     cf_cookies: Option<&str>,
     cf_ua: Option<&str>,
-    domain: &str,
+    _domain: &str,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    // Build headers with CF credentials if we have them
-    let mut headers = HeaderMap::new();
-    if let Some(cookies) = cf_cookies {
-        headers.insert("Cookie", cookies.parse().unwrap());
-    }
-    if let Some(ua) = cf_ua {
-        headers.insert("User-Agent", ua.parse().unwrap());
-    }
-    headers.insert("Referer", format!("https://{}/", domain).parse().unwrap());
-
-    // Try to download using a basic wreq client (without JA3 TLS emulation)
-    // Cloudflare blocks requests where the User-Agent (from FlareSolverr) doesn't
-    // match the JA3 TLS fingerprint (Chrome132 forced by the shared wreq client).
-    // Using a plain client avoids this mismatch.
-    let basic_client = wreq::Client::builder()
-        .gzip(true)
-        .deflate(true)
-        .brotli(true)
-        .zstd(true)
-        .cookie_store(true)
-        // Keep DNS logic if necessary, but basic uses system DNS by default
-        .cert_verification(false)
-        .verify_hostname(false)
-        .build()?;
-
-    // Try downloading with the basic client
-    match basic_client.get(url).headers(headers.clone()).send().await {
-        Ok(response) if response.status().is_success() => {
-            debug!("Basic wreq download succeeded (bypassed CF TLS check)");
-            return Ok(response.bytes().await?.to_vec());
-        }
-        Ok(response) => {
-            let status = response.status();
-            warn!("Basic wreq download failed (HTTP {})", status);
-
-            if status.as_u16() == 302 {
-                return match crate::utils::get_remaining_downloads(&basic_client).await {
-                    Ok(0) => {
-                        error!("No remaining downloads");
-                        Err("No remaining downloads".into())
-                    }
-                    Ok(n) => {
-                        warn!("Failed to download torrent, {} remaining downloads", n);
-                        Err("Failed to download torrent, but you have remaining downloads.".into())
-                    }
-                    Err(e) => {
-                        error!("Error checking remaining downloads: {}", e);
-                        Err("Failed to download torrent and check remaining downloads.".into())
-                    }
-                };
-            }
-        }
-        Err(e) => {
-            warn!("Basic wreq download error: {}", e);
-        }
+    if !FlareSolverrClient::is_available() {
+        return Err("FlareSolverr not configured".into());
     }
 
-    Err("Torrent download failed: CF blocked the raw HTTP client".into())
+    let fs = FLARESOLVERR.get().ok_or("FlareSolverr not configured")?;
+    let session_id = match FlareSolverrClient::get_session_id().await {
+        Some(id) => id,
+        None => fs.create_session().await?,
+    };
+
+    let solution = fs.solve_with_session(url, 60000, Some(&session_id)).await?;
+    Ok(solution.response.into_bytes())
+}
 }
 
 /// Extract token from JSON response (handles both plain JSON and HTML-wrapped JSON from FlareSolverr)

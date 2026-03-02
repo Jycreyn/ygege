@@ -132,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("FlareSolverr not configured (set FLARESOLVERR_URL to enable CF fallback)");
     }
 
-    let client = auth::login_with_flaresolverr(
+    auth::login_with_flaresolverr(
         config.username.as_str(),
         config.password.as_str(),
         true,
@@ -141,11 +141,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
     info!("Logged in to YGG with username: {}", config.username);
 
-    let account = user::get_account(&client).await?;
+    let account = user::get_account().await?;
     KEY.set(account.passkey)?;
 
     // Initialize categories cache
-    if let Err(e) = init_categories(&client).await {
+    if let Err(e) = init_categories().await {
         warn!("Failed to initialize categories cache: {}", e);
     } else {
         let categories = search::CATEGORIES_CACHE.get().unwrap().len();
@@ -164,7 +164,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_clone = config.clone();
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(client.clone()))
             .app_data(web::Data::new(config_clone.clone()))
             .configure(rest::config_routes)
     })

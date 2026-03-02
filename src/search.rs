@@ -14,7 +14,6 @@ pub(crate) fn get_rate_limiter() -> &'static RateLimiter {
 }
 
 pub async fn search(
-    client: &wreq::Client,
     name: &str,
     offset: Option<usize>,
     category: Option<usize>,
@@ -45,7 +44,7 @@ pub async fn search(
 
     let url = build_query_url(name.as_str(), offset, category, sub_category, sort, order)?;
     let start = std::time::Instant::now();
-    let body = fetch_ygg_page(client, &url).await?;
+    let body = fetch_ygg_page(&url).await?;
 
     debug!("Search response received");
     let torrents = parser::extract_torrents(&body)?;

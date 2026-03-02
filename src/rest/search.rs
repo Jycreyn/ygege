@@ -8,10 +8,8 @@ use futures::future::join_all;
 use qstring::QString;
 use serde_json::Value;
 use std::collections::HashSet;
-use wreq::Client;
 
 async fn batch_best_search(
-    client: &Client,
     queries: Vec<String>,
     offset: Option<usize>,
     category: Option<usize>,
@@ -32,7 +30,6 @@ async fn batch_best_search(
         .iter()
         .map(|query| {
             search(
-                client,
                 query.as_str(),
                 offset,
                 category,
@@ -93,7 +90,7 @@ async fn batch_best_search(
             Err(e) => {
                 if e.to_string().contains("Session expired") {
                     info!("Session expired during TMDB search, attempting renewal...");
-                    let new_client = crate::auth::login_with_flaresolverr(
+                    let _ = crate::auth::login_with_flaresolverr(
                         config.username.as_str(),
                         config.password.as_str(),
                         true,
@@ -101,8 +98,7 @@ async fn batch_best_search(
                     )
                     .await?;
 
-                    return Box::pin(batch_best_search(
-                        &new_client,
+                    return batch_best_search(
                         queries,
                         offset,
                         category,
@@ -112,7 +108,7 @@ async fn batch_best_search(
                         ban_words,
                         quote_search,
                         config,
-                    ))
+                    )
                     .await;
                 } else {
                     warn!(
@@ -141,7 +137,6 @@ async fn batch_best_search(
 }
 
 async fn batch_category_search(
-    client: &Client,
     name: &str,
     offset: Option<usize>,
     cats_list: Vec<usize>,
@@ -161,7 +156,6 @@ async fn batch_category_search(
         .iter()
         .map(|cat| {
             search(
-                client,
                 name,
                 offset,
                 Some(*cat),
@@ -193,7 +187,7 @@ async fn batch_category_search(
             Err(e) => {
                 if e.to_string().contains("Session expired") {
                     info!("Session expired during category search, attempting renewal...");
-                    let new_client = crate::auth::login_with_flaresolverr(
+                    let _ = crate::auth::login_with_flaresolverr(
                         config.username.as_str(),
                         config.password.as_str(),
                         true,
@@ -201,8 +195,7 @@ async fn batch_category_search(
                     )
                     .await?;
 
-                    return Box::pin(batch_category_search(
-                        &new_client,
+                    return batch_category_search(
                         name,
                         offset,
                         cats_list,
@@ -212,7 +205,7 @@ async fn batch_category_search(
                         ban_words,
                         quote_search,
                         config,
-                    ))
+                    )
                     .await;
                 } else {
                     warn!("Search failed for category {}: {}", cats_list[idx], e);
@@ -307,7 +300,6 @@ pub async fn ygg_search(
                         id
                     );
                     let results = batch_best_search(
-                        &data.client,
                         queries,
                         offset,
                         category,
@@ -386,7 +378,6 @@ pub async fn ygg_search(
         );
 
         let results = batch_category_search(
-            &data.client,
             name,
             offset,
             cats,
@@ -409,7 +400,6 @@ pub async fn ygg_search(
     }
 
     let torrents = search(
-        &data.client,
         name,
         offset,
         category,
@@ -432,38 +422,39 @@ pub async fn ygg_search(
             Ok(response.json(json))
         }
         Err(e) => {
-            // If session expired and NOT using custom cookies, try to renew
+            // If session expired and NOT using custom cookies, try to renew via FlareSolverr
             if e.to_string().contains("Session expired") && !data.is_custom {
-                info!("Trying to renew session...");
-                let new_client =
-                    crate::auth::login_with_flaresolverr(config.username.as_str(), config.password.as_str(), true, config.flaresolverr_url.as_deref())
-                        .await?;
+                info!("Trying to renew session via FlareSolverr...");
+                let _ = crate::auth::login_with_flaresolverr(
+                    config.username.as_str(),
+                    config.password.as_str(),
+                    true,
+                    config.flaresolverr_url.as_deref(),
+                )
+                .await?;
 
-                // Copy cookies from new client to shared client
-                let domain = crate::DOMAIN.lock()?;
-                let url = wreq::Url::parse(&format!("https://{}/", domain))?;
-                if let Some(cookies) = new_client.get_cookies(&url) {
-                    data.shared_client.clear_cookies();
-                    for cookie_str in cookies.to_str().unwrap_or("").split(';') {
-                        let cookie_str = cookie_str.trim();
-                        if cookie_str.is_empty() {
-                            continue;
-                        }
-                        let parts: Vec<&str> = cookie_str.splitn(2, '=').collect();
-                        if parts.len() != 2 {
-                            continue;
-                        }
-                        let cookie =
-                            wreq::cookie::CookieBuilder::new(parts[0].trim(), parts[1].trim())
-                                .domain(domain.as_str())
-                                .path("/")
-                                .http_only(true)
-                                .secure(true)
-                                .build();
-                        data.shared_client.set_cookie(&url, cookie);
+                // Retry the search once after renewing session
+                let retry = search(
+                    name,
+                    offset,
+                    category,
+                    sub_category,
+                    sort,
+                    order,
+                    ban_words.clone(),
+                    quote_search,
+                )
+                .await;
+
+                if let Ok(torrents) = retry {
+                    let json: Vec<Value> = torrents.into_iter().map(|t| t.to_json()).collect();
+                    let mut response = HttpResponse::Ok();
+                    if let Some(cookies) = data.cookies_header {
+                        response.insert_header(("X-Session-Cookies", cookies));
                     }
+                    return Ok(response.json(json));
                 }
-                drop(domain);
+            }
 
                 info!("Session renewed, retrying search...");
                 let torrents = search(
