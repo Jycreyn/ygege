@@ -41,32 +41,36 @@ Aucune compilation requise. Créez un fichier `compose.yml` :
 
 ```yaml
 services:
-    ygege:
-        image: ghcr.io/jycreyn/ygege:latest
-        container_name: ygege
-        restart: unless-stopped
-        ports:
-            - "8715:8715"
-        environment:
-            YGG_USERNAME: "votre_username"
-            YGG_PASSWORD: "votre_password"
-            BIND_PORT: "8715"
-            LOG_LEVEL: "info"
-            FLARESOLVERR_URL: "http://flaresolverr:8191"
-            # TMDB_TOKEN: "votre_token_tmdb"
-            
-        volumes:
-            - ygege-sessions:/app/sessions
+  ygege:
+    image: ghcr.io/jycreyn/ygege:latest
+    container_name: ygege
+    restart: unless-stopped
+    ports:
+      - "8715:8715"
+    environment:
+      - YGG_USERNAME=${YGG_USERNAME}
+      - YGG_PASSWORD=${YGG_PASSWORD}
+      - BIND_PORT=8715
+      - LOG_LEVEL=info
+      - FLARESOLVERR_URL=http://flaresolverr:8191
+      # - TMDB_TOKEN=${TMDB_TOKEN}
+    volumes:
+      - ygege-sessions:/app/sessions
+    depends_on:
+      - flaresolverr
 
-    flaresolverr:
-       image: ghcr.io/flaresolverr/flaresolverr:latest
-       container_name: flaresolverr
-       restart: unless-stopped
-       ports:
-         - "8191:8191"
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    # Port exposé uniquement si tu veux tester l'API FlareSolverr depuis ton navigateur
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
 
 volumes:
-    ygege-sessions:
+  ygege-sessions:
 ```
 
 ```bash
