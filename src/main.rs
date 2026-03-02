@@ -123,6 +123,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     std::fs::create_dir_all("sessions")?;
 
+    // Initialize FlareSolverr early so functions that rely on it (like
+    // `get_own_ip`) can use it. The URL is read from environment via
+    // `load_config_from_env()` and stored in `config.flaresolverr_url`.
     if let Some(ref fs_url) = config.flaresolverr_url {
         match crate::flaresolverr::FlareSolverrClient::init_global(fs_url) {
             Ok(()) => info!("FlareSolverr initialized at: {}", fs_url),
