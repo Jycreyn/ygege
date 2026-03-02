@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     perl \
     pkg-config \
     libclang-dev \
+    libssl-dev \
+    openssl \
     git \
     wget \
     && rm -rf /var/lib/apt/lists/*
