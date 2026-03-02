@@ -39,12 +39,14 @@ pub async fn download_torrent(
     debug!("Token response: {}", token);
 
     // --- Step 2: Wait ---
-    if !config.turbo_enabled.unwrap_or(false) {
-        let wait_secs = if FlareSolverrClient::is_available() { 5 } else { 30 };
-        debug!("Wait {} secs...", wait_secs);
-        sleep(Duration::from_secs(wait_secs)).await;
-        debug!("Wait is over");
-    }
+    let wait_secs = if config.turbo_enabled.unwrap_or(false) {
+        5
+    } else {
+        35
+    };
+    debug!("Wait {} secs...", wait_secs);
+    sleep(Duration::from_secs(wait_secs)).await;
+    debug!("Wait is over");
 
     // --- Step 3: Download the signed torrent file ---
     let download_url = format!(
