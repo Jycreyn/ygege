@@ -18,6 +18,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Custom release tag (e.g. 1.2.3, beta, my-custom-tag). Overrides the default branch-based tag.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -174,7 +179,9 @@ jobs:
       - name: Determine tags
         id: tags
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+          if [[ -n "${{ inputs.release_name }}" ]]; then
+            TAGS="${{ inputs.release_name }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${{ github.ref_name }}"
             VERSION_NUM="${VERSION#v}"
             if [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -229,7 +236,9 @@ jobs:
       - name: Determine tags (no-UPX)
         id: tags
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+          if [[ -n "${{ inputs.release_name }}" ]]; then
+            TAGS="${{ inputs.release_name }}-noupx"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${{ github.ref_name }}"
             VERSION_NUM="${VERSION#v}"
             if [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
