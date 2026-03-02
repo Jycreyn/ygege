@@ -52,18 +52,18 @@ services:
             YGG_PASSWORD: "votre_password"
             BIND_PORT: "8715"
             LOG_LEVEL: "info"
+            FLARESOLVERR_URL: "http://flaresolverr:8191"
             # TMDB_TOKEN: "votre_token_tmdb"
-            # FLARESOLVERR_URL: "http://flaresolverr:8191"   # Décommenter pour activer
+            
         volumes:
             - ygege-sessions:/app/sessions
 
-    # Décommenter le bloc ci-dessous pour activer FlareSolverr :
-    # flaresolverr:
-    #   image: ghcr.io/flaresolverr/flaresolverr:latest
-    #   container_name: flaresolverr
-    #   restart: unless-stopped
-    #   ports:
-    #     - "8191:8191"
+    flaresolverr:
+       image: ghcr.io/flaresolverr/flaresolverr:latest
+       container_name: flaresolverr
+       restart: unless-stopped
+       ports:
+         - "8191:8191"
 
 volumes:
     ygege-sessions:
