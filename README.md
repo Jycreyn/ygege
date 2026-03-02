@@ -68,6 +68,14 @@ services:
       - "8191:8191" 
     environment:
       - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8191/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+
 
 volumes:
   ygege-sessions:
