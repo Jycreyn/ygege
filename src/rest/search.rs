@@ -456,30 +456,8 @@ pub async fn ygg_search(
                 }
             }
 
-                info!("Session renewed, retrying search...");
-                let torrents = search(
-                    &new_client,
-                    name,
-                    offset,
-                    category,
-                    sub_category,
-                    sort,
-                    order,
-                    ban_words,
-                    quote_search,
-                )
-                .await?;
-                let json: Vec<Value> = torrents.into_iter().map(|t| t.to_json()).collect();
-                info!("{} torrents found", json.len());
-                let mut response = HttpResponse::Ok();
-                if let Some(cookies) = data.cookies_header {
-                    response.insert_header(("X-Session-Cookies", cookies));
-                }
-                Ok(response.json(json))
-            } else {
-                error!("Search error: {}", e);
-                Err(e)
-            }
+            error!("Search error: {}", e);
+            Err(e)
         }
     }
 }
