@@ -151,76 +151,74 @@ async fn batch_category_search(
         cats_list.len()
     );
 
-    let search_futures: Vec<_> = cats_list
-        .iter()
-        .map(|cat| {
-            search(
-                name,
-                offset,
-                Some(*cat),
-                sub_category,
-                sort,
-                order,
-                ban_words.clone(),
-                quote_search,
-            )
-        })
-        .collect();
+    let mut attempts = 0;
+    loop {
+        let search_futures: Vec<_> = cats_list
+            .iter()
+            .map(|cat| {
+                search(
+                    name,
+                    offset,
+                    Some(*cat),
+                    sub_category,
+                    sort,
+                    order,
+                    ban_words.clone(),
+                    quote_search,
+                )
+            })
+            .collect();
 
-    let results = join_all(search_futures).await;
+        let results = join_all(search_futures).await;
 
-    let mut collected_torrents: HashSet<Torrent> = HashSet::new();
+        let mut collected_torrents: HashSet<Torrent> = HashSet::new();
+        let mut session_renewed = false;
 
-    for (idx, result) in results.into_iter().enumerate() {
-        match result {
-            Ok(torrents) => {
-                debug!(
-                    "Category {} returned {} results",
-                    cats_list[idx],
-                    torrents.len()
-                );
-                torrents.into_iter().for_each(|t| {
-                    collected_torrents.insert(t);
-                });
-            }
-            Err(e) => {
-                if e.to_string().contains("Session expired") {
-                    info!("Session expired during category search, attempting renewal...");
-                    let _ = crate::auth::login_with_flaresolverr(
-                        config.username.as_str(),
-                        config.password.as_str(),
-                        true,
-                        config.flaresolverr_url.as_deref(),
-                    )
-                    .await?;
-
-                    return batch_category_search(
-                        name,
-                        offset,
-                        cats_list,
-                        sub_category,
-                        sort,
-                        order,
-                        ban_words,
-                        quote_search,
-                        config,
-                    )
-                    .await;
-                } else {
-                    warn!("Search failed for category {}: {}", cats_list[idx], e);
+        for (idx, result) in results.into_iter().enumerate() {
+            match result {
+                Ok(torrents) => {
+                    debug!(
+                        "Category {} returned {} results",
+                        cats_list[idx],
+                        torrents.len()
+                    );
+                    torrents.into_iter().for_each(|t| {
+                        collected_torrents.insert(t);
+                    });
+                }
+                Err(e) => {
+                    if e.to_string().contains("Session expired") && attempts == 0 {
+                        info!("Session expired during category search, attempting renewal...");
+                        let _ = crate::auth::login_with_flaresolverr(
+                            config.username.as_str(),
+                            config.password.as_str(),
+                            true,
+                            config.flaresolverr_url.as_deref(),
+                        )
+                        .await?;
+                        session_renewed = true;
+                        break;
+                    } else {
+                        warn!("Search failed for category {}: {}", cats_list[idx], e);
+                    }
                 }
             }
         }
-    }
 
-    debug!(
-        "Returning {} merged torrents from {} categories",
-        collected_torrents.len(),
-        cats_list.len()
-    );
-    let mut torrents: Vec<Torrent> = collected_torrents.into_iter().collect();
-    Torrent::sort(&mut torrents, sort, order);
-    Ok(torrents)
+        if session_renewed {
+            attempts += 1;
+            continue;
+        }
+
+        debug!(
+            "Returning {} merged torrents from {} categories",
+            collected_torrents.len(),
+            cats_list.len()
+        );
+        let mut torrents: Vec<Torrent> = collected_torrents.into_iter().collect();
+        Torrent::sort(&mut torrents, sort, order);
+        return Ok(torrents);
+    }
 }
 
 #[get("/search")]

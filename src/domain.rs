@@ -20,7 +20,7 @@ pub async fn get_ygg_domain() -> Result<String, Box<dyn std::error::Error>> {
             let solution_res = FlareSolverrClient::fetch_page_with_solution(&url).await;
             let solution = match solution_res {
                 Ok(s) => s,
-                Err(e) => return Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+                Err(e) => return Err(format!("FlareSolverr fetch error: {}", e).into()),
             };
             let resolved = solution
                 .url
