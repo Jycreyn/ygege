@@ -13,6 +13,8 @@ Indexeur haute performance pour YGG Torrent écrit en Rust
 > Quand `wreq` seul n'arrive plus à passer le challenge CF (erreur 403, pas de cookie `ygg_`), ygege délègue automatiquement la résolution à un conteneur FlareSolverr, récupère les cookies de bypass, et les réinjecte dans le client `wreq` pour poursuivre le login normalement.
 >
 > **Fichiers modifiés :** `src/flaresolverr.rs` _(nouveau)_, `src/config.rs`, `src/auth.rs`, `src/main.rs`, `docker/compose.yml`
+>
+> Je suis en train de refaire le code pour retirer wreq completement et s'appuyer sur un solveur externe et non en fallback
 
 ---
 
